@@ -206,6 +206,11 @@ def destroy_environment(environment: str, apply_flag: bool) -> int:
         print(f"Environment directory not found: {env_dir}")
         return 1
     
+    # Recreate all module configurations for this environment
+    print(f"Recreating Terraform configuration for {environment}...")
+    for module in ALLOWED_MODULES:
+        write_environment_module(environment, module)
+    
     init_res = terraform_init(env_dir)
     print_result("terraform init", init_res.returncode, init_res.stdout, init_res.stderr)
     if init_res.returncode != 0:
