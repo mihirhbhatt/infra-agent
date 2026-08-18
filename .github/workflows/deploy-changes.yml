@@ -44,8 +44,14 @@ jobs:
 
       - name: Apply baseline dev changes
         run: |
+          echo "Deploying network to dev..."
           python scripts/agent_loop.py \
             --prompt "deploy network to dev apply" \
+            --apply
+          
+          echo "Deploying compute to dev..."
+          python scripts/agent_loop.py \
+            --prompt "deploy compute to dev apply" \
             --apply
 
       - name: List EC2 Instances
@@ -67,5 +73,5 @@ jobs:
       - name: Terraform Outputs
         run: |
           echo "=== Terraform Outputs ==="
-          terraform output || echo "No outputs defined"
+          terraform output -no-color 2>/dev/null || echo "ℹ️  No outputs defined in Terraform"
         continue-on-error: true
