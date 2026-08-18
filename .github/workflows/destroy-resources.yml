@@ -25,7 +25,7 @@ jobs:
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
     defaults:
       run:
-        working-directory: infra-agent
+        working-directory: .
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,3 +53,19 @@ jobs:
           python scripts/agent_loop.py \
             --prompt "destroy ${{ github.event.inputs.environment }} resources" \
             --apply
+
+      - name: Verify Resource Deletion
+        continue-on-error: true
+        run: |
+          echo "=== Remaining EC2 Instances ==="
+          aws ec2 describe-instances \
+            --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name]' \
+            --output table || echo "No instances found"
+
+      - name: Verify VPCs Deletion
+        continue-on-error: true
+        run: |
+          echo "=== Remaining VPCs ==="
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[*].[VpcId,State,CidrBlock]' \
+            --output table || echo "No VPCs found"

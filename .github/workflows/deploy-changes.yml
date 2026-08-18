@@ -19,15 +19,18 @@ on:
 
 jobs:
   apply-on-merge:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'workflow_dispatch')
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      ENFORCE_GUARDRAILS: "true"
     defaults:
       run:
-        working-directory: infra-agent
+        working-directory: .
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,8 +43,51 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
+      - name: Install Checkov
+        run: python -m pip install --disable-pip-version-check checkov
+
+      - name: Resolve target environment
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Apply baseline dev changes
         run: |
+          echo "Deploying network to ${{ steps.target.outputs.environment }}..."
           python scripts/agent_loop.py \
-            --prompt "deploy network to dev apply" \
+            --prompt "deploy network to ${{ steps.target.outputs.environment }} apply" \
             --apply
+          
+          echo "Deploying compute to ${{ steps.target.outputs.environment }}..."
+          python scripts/agent_loop.py \
+            --prompt "deploy compute to ${{ steps.target.outputs.environment }} apply" \
+            --apply
+
+      - name: List EC2 Instances
+        continue-on-error: true
+        run: |
+          echo "=== EC2 Instances ==="
+          aws ec2 describe-instances \
+            --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,Tags[?Key==`Name`].Value|[0]]' \
+            --output table
+
+      - name: List VPCs
+        continue-on-error: true
+        run: |
+          echo "=== VPCs ==="
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[*].[VpcId,State,CidrBlock,Tags[?Key==`Name`].Value|[0]]' \
+            --output table
+
+      - name: Terraform Outputs
+        run: |
+          echo "=== Terraform Outputs ==="
+          terraform output -no-color 2>/dev/null || echo "ℹ️  No outputs defined in Terraform"
+        continue-on-error: true
