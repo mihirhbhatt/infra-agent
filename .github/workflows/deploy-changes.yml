@@ -49,6 +49,7 @@ jobs:
             --apply
 
       - name: List EC2 Instances
+        continue-on-error: true
         run: |
           echo "=== EC2 Instances ==="
           aws ec2 describe-instances \
@@ -56,6 +57,7 @@ jobs:
             --output table
 
       - name: List VPCs
+        continue-on-error: true
         run: |
           echo "=== VPCs ==="
           aws ec2 describe-vpcs \

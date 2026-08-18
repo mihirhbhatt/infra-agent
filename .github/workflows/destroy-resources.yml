@@ -55,6 +55,7 @@ jobs:
             --apply
 
       - name: Verify Resource Deletion
+        continue-on-error: true
         run: |
           echo "=== Remaining EC2 Instances ==="
           aws ec2 describe-instances \
@@ -62,6 +63,7 @@ jobs:
             --output table || echo "No instances found"
 
       - name: Verify VPCs Deletion
+        continue-on-error: true
         run: |
           echo "=== Remaining VPCs ==="
           aws ec2 describe-vpcs \
