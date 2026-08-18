@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from shutil import which
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,10 @@ def run_cmd(cmd: list[str], cwd: Path) -> CommandResult:
     )
 
 
+def command_available(command: str) -> bool:
+    return which(command) is not None
+
+
 def terraform_init(environment_dir: Path) -> CommandResult:
     return run_cmd(["terraform", "init", "-input=false", "-no-color"], cwd=environment_dir)
 
@@ -50,3 +55,20 @@ def terraform_apply(environment_dir: Path) -> CommandResult:
         cwd=environment_dir,
     )
 
+
+def terraform_destroy(environment_dir: Path) -> CommandResult:
+    return run_cmd(
+        ["terraform", "destroy", "-input=false", "-auto-approve", "-no-color"],
+        cwd=environment_dir,
+    )
+
+
+def checkov_scan(environment_dir: Path) -> CommandResult:
+    return run_cmd(["checkov", "-d", ".", "--quiet"], cwd=environment_dir)
+
+
+def trivy_config_scan(environment_dir: Path) -> CommandResult:
+    return run_cmd(
+        ["trivy", "config", "--exit-code", "1", "--no-progress", "."],
+        cwd=environment_dir,
+    )

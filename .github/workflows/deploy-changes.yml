@@ -27,6 +27,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      ENFORCE_GUARDRAILS: "true"
     defaults:
       run:
         working-directory: .
@@ -42,16 +43,31 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
+      - name: Install Checkov
+        run: python -m pip install --disable-pip-version-check checkov
+
+      - name: Resolve target environment
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Apply baseline dev changes
         run: |
-          echo "Deploying network to dev..."
+          echo "Deploying network to ${{ steps.target.outputs.environment }}..."
           python scripts/agent_loop.py \
-            --prompt "deploy network to dev apply" \
+            --prompt "deploy network to ${{ steps.target.outputs.environment }} apply" \
             --apply
           
-          echo "Deploying compute to dev..."
+          echo "Deploying compute to ${{ steps.target.outputs.environment }}..."
           python scripts/agent_loop.py \
-            --prompt "deploy compute to dev apply" \
+            --prompt "deploy compute to ${{ steps.target.outputs.environment }} apply" \
             --apply
 
       - name: List EC2 Instances

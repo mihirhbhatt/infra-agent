@@ -1,0 +1,39 @@
+name: Infrastructure request
+description: Plan or apply infrastructure from a GitHub issue
+title: "infra: <short request>"
+labels:
+  - infra-request
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for either:
+        - predefined module commands like `deploy compute to dev`
+        - freeform LLM-backed requests like `Create a private S3 bucket for logs`
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Target environment for this request
+      placeholder: dev
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Infrastructure request
+      description: Predefined command or freeform AWS infrastructure request
+      placeholder: |
+        deploy compute to dev
+        
+        or
+        
+        Create an S3 bucket with versioning enabled for app logs.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        When the issue is opened, GitHub Actions will plan the request.
+        Comment `/infra apply` to apply it after review.
+        Comment `/infra destroy dev resources` to tear down predefined module resources.
