@@ -51,6 +51,24 @@ def write_environment_module(environment: str, module: str) -> Path:
     env_dir.mkdir(parents=True, exist_ok=True)
 
     module_source = f"../../modules/{module}"
+    backend_config = """
+  backend "s3" {
+    bucket         = "infra-agent-terraform-state"
+    key            = "dev/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-locks"
+  }
+""" if environment == "dev" else """
+  backend "s3" {
+    bucket         = "infra-agent-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-locks"
+  }
+"""
+
     if module == "compute":
         main_tf = f"""terraform {{
   required_version = ">= 1.5.0"
@@ -60,7 +78,7 @@ def write_environment_module(environment: str, module: str) -> Path:
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }}
-  }}
+  }}{backend_config}
 }}
 
 variable "aws_region" {{
@@ -78,6 +96,7 @@ module "{module}" {{
     else:
         main_tf = f"""terraform {{
   required_version = ">= 1.5.0"
+{backend_config}
 }}
 
 module "{module}" {{
