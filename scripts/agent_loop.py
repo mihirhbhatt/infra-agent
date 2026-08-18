@@ -53,19 +53,15 @@ def write_environment_module(environment: str, module: str) -> Path:
     module_source = f"../../modules/{module}"
     backend_config = """
   backend "s3" {
-    bucket         = "infra-agent-terraform-state"
-    key            = "dev/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
+    bucket = "infra-agent-terraform-state"
+    key    = "dev/terraform.tfstate"
+    region = "us-east-1"
   }
 """ if environment == "dev" else """
   backend "s3" {
-    bucket         = "infra-agent-terraform-state"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
+    bucket = "infra-agent-terraform-state"
+    key    = "prod/terraform.tfstate"
+    region = "us-east-1"
   }
 """
 
