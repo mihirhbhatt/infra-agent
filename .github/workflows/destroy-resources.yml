@@ -1,0 +1,55 @@
+name: destroy-resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      confirmation:
+        description: 'Type "destroy-prod" to confirm destruction (required for prod)'
+        required: false
+        type: string
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+    defaults:
+      run:
+        working-directory: infra-agent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Confirm production destruction
+        if: github.event.inputs.environment == 'prod'
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "destroy-prod" ]; then
+            echo "ERROR: Production destruction requires confirmation"
+            echo "Please set confirmation input to 'destroy-prod'"
+            exit 1
+          fi
+          echo "Production destruction confirmed"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Destroy ${{ github.event.inputs.environment }} resources
+        run: |
+          python scripts/agent_loop.py \
+            --prompt "destroy ${{ github.event.inputs.environment }} resources" \
+            --apply
