@@ -1,0 +1,11 @@
+Issue command received:
+{{ prompt }}
+
+Interpret and execute:
+1) command type
+2) target module
+3) target environment
+4) plan/apply mode
+
+Reject if outside configured policy.
+

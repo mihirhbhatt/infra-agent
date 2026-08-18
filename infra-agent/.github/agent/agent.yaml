@@ -1,0 +1,15 @@
+name: infra-agent
+description: Prompt-driven Terraform orchestrator
+default_environment: dev
+allowed_environments:
+  - dev
+  - prod
+module_catalog:
+  network: ../../modules/network
+  compute: ../../modules/compute
+commands:
+  deploy:
+    pattern: "deploy <module> to <environment> [apply]"
+    default_mode: plan
+memory_file: ../../scripts/.agent-memory.json
+
