@@ -99,84 +99,22 @@ def print_result(step: str, result_code: int, stdout: str, stderr: str) -> None:
 
 def run(prompt: str, apply_flag: bool) -> int:
     module, environment, apply_requested, operation = parse_prompt(prompt)
-    ensure_allowed(module, environment)
     
     if operation == "destroy":
+        # Only validate environment for destroy
+        if environment not in ALLOWED_ENVS:
+            raise ValueError(
+                f"Environment '{environment}' is not allowed. Allowed: {sorted(ALLOWED_ENVS)}"
+            )
         return destroy_environment(environment, apply_flag)
-    else:
-        env_dir = write_environment_module(environment, module)
+    
+    # For deploy operations, validate both module and environment
+    ensure_allowed(module, environment)
+    env_dir = write_environment_module(environment, module)
 
-        init_res = terraform_init(env_dir)
-        print_result("terraform init", init_res.returncode, init_res.stdout, init_res.stderr)
-        if init_res.returncode != 0:
-            save_event(
-                MemoryEvent(
-                    timestamp=now_utc_iso(),
-                    prompt=prompt,
-                    module=module,
-                    environment=environment,
-                    mode="plan",
-                    status="failed",
-                    detail="terraform init failed",
-                )
-            )
-            return init_res.returncode
-
-        validate_res = terraform_validate(env_dir)
-        print_result(
-            "terraform validate",
-            validate_res.returncode,
-            validate_res.stdout,
-            validate_res.stderr,
-        )
-        if validate_res.returncode != 0:
-            save_event(
-                MemoryEvent(
-                    timestamp=now_utc_iso(),
-                    prompt=prompt,
-                    module=module,
-                    environment=environment,
-                    mode="plan",
-                    status="failed",
-                    detail="terraform validate failed",
-                )
-            )
-            return validate_res.returncode
-
-        plan_res = terraform_plan(env_dir)
-        print_result("terraform plan", plan_res.returncode, plan_res.stdout, plan_res.stderr)
-        if plan_res.returncode != 0:
-            save_event(
-                MemoryEvent(
-                    timestamp=now_utc_iso(),
-                    prompt=prompt,
-                    module=module,
-                    environment=environment,
-                    mode="plan",
-                    status="failed",
-                    detail="terraform plan failed",
-                )
-            )
-            return plan_res.returncode
-
-        should_apply = apply_flag or apply_requested
-        if should_apply:
-            apply_res = terraform_apply(env_dir)
-            print_result("terraform apply", apply_res.returncode, apply_res.stdout, apply_res.stderr)
-            status = "success" if apply_res.returncode == 0 else "failed"
-            save_event(
-                MemoryEvent(
-                    timestamp=now_utc_iso(),
-                    prompt=prompt,
-                    module=module,
-                    environment=environment,
-                    mode="apply",
-                    status=status,
-                    detail="terraform apply completed",
-                )
-            )
-            return apply_res.returncode
-
+    init_res = terraform_init(env_dir)
+    print_result("terraform init", init_res.returncode, init_res.stdout, init_res.stderr)
+    if init_res.returncode != 0:
         save_event(
             MemoryEvent(
                 timestamp=now_utc_iso(),
@@ -184,11 +122,79 @@ def run(prompt: str, apply_flag: bool) -> int:
                 module=module,
                 environment=environment,
                 mode="plan",
-                status="success",
-                detail="terraform plan completed",
+                status="failed",
+                detail="terraform init failed",
             )
         )
-        return 0
+        return init_res.returncode
+
+    validate_res = terraform_validate(env_dir)
+    print_result(
+        "terraform validate",
+        validate_res.returncode,
+        validate_res.stdout,
+        validate_res.stderr,
+    )
+    if validate_res.returncode != 0:
+        save_event(
+            MemoryEvent(
+                timestamp=now_utc_iso(),
+                prompt=prompt,
+                module=module,
+                environment=environment,
+                mode="plan",
+                status="failed",
+                detail="terraform validate failed",
+            )
+        )
+        return validate_res.returncode
+
+    plan_res = terraform_plan(env_dir)
+    print_result("terraform plan", plan_res.returncode, plan_res.stdout, plan_res.stderr)
+    if plan_res.returncode != 0:
+        save_event(
+            MemoryEvent(
+                timestamp=now_utc_iso(),
+                prompt=prompt,
+                module=module,
+                environment=environment,
+                mode="plan",
+                status="failed",
+                detail="terraform plan failed",
+            )
+        )
+        return plan_res.returncode
+
+    should_apply = apply_flag or apply_requested
+    if should_apply:
+        apply_res = terraform_apply(env_dir)
+        print_result("terraform apply", apply_res.returncode, apply_res.stdout, apply_res.stderr)
+        status = "success" if apply_res.returncode == 0 else "failed"
+        save_event(
+            MemoryEvent(
+                timestamp=now_utc_iso(),
+                prompt=prompt,
+                module=module,
+                environment=environment,
+                mode="apply",
+                status=status,
+                detail="terraform apply completed",
+            )
+        )
+        return apply_res.returncode
+
+    save_event(
+        MemoryEvent(
+            timestamp=now_utc_iso(),
+            prompt=prompt,
+            module=module,
+            environment=environment,
+            mode="plan",
+            status="success",
+            detail="terraform plan completed",
+        )
+    )
+    return 0
 
 
 def destroy_environment(environment: str, apply_flag: bool) -> int:
