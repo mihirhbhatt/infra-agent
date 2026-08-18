@@ -5,10 +5,42 @@ on:
     types: [opened, edited, reopened]
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Infra request (e.g. "deploy compute to dev apply" or "Create an S3 bucket for logs")'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment (used for LLM mode when not in prompt)'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      strategy:
+        description: 'Execution strategy'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - module
+          - llm
+      apply:
+        description: 'Apply changes (false = plan only)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   run-agent:
-    if: github.event.issue.pull_request == null
+    if: github.event_name == 'workflow_dispatch' || github.event.issue.pull_request == null
     runs-on: ubuntu-latest
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -41,6 +73,17 @@ jobs:
       - name: Resolve issue request
         id: request
         run: |
+          # Manual trigger — use inputs directly
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "prompt<<EOF" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "${{ github.event.inputs.prompt }}" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "apply=${{ github.event.inputs.apply }}" >> "$GITHUB_OUTPUT"
+            echo "strategy=${{ github.event.inputs.strategy }}" >> "$GITHUB_OUTPUT"
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           ISSUE_BODY=$(cat <<'EOF'
           ${{ github.event.issue.body }}
           EOF
@@ -50,6 +93,8 @@ jobs:
             printf '%s\n' "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
             echo "apply=false" >> "$GITHUB_OUTPUT"
+            echo "strategy=auto" >> "$GITHUB_OUTPUT"
+            echo "environment=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -62,6 +107,8 @@ jobs:
             printf '%s\n' "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
             echo "apply=false" >> "$GITHUB_OUTPUT"
+            echo "strategy=auto" >> "$GITHUB_OUTPUT"
+            echo "environment=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "$COMMENT_BODY" = "/infra apply" ]; then
@@ -69,15 +116,21 @@ jobs:
             printf '%s\n' "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
             echo "apply=true" >> "$GITHUB_OUTPUT"
+            echo "strategy=auto" >> "$GITHUB_OUTPUT"
+            echo "environment=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if printf '%s' "$COMMENT_BODY" | grep -Eq '^/infra destroy (dev|staging|prod) resources$'; then
             echo "prompt=${COMMENT_BODY#/infra }" >> "$GITHUB_OUTPUT"
             echo "apply=true" >> "$GITHUB_OUTPUT"
+            echo "strategy=module" >> "$GITHUB_OUTPUT"
+            echo "environment=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "prompt=" >> "$GITHUB_OUTPUT"
           echo "apply=false" >> "$GITHUB_OUTPUT"
+          echo "strategy=auto" >> "$GITHUB_OUTPUT"
+          echo "environment=" >> "$GITHUB_OUTPUT"
 
       - name: Run agent loop
         if: steps.request.outputs.prompt != ''
@@ -86,7 +139,12 @@ jobs:
           if [ "${{ steps.request.outputs.apply }}" = "true" ]; then
             APPLY_FLAG="--apply"
           fi
+          ENV_FLAG=""
+          if [ -n "${{ steps.request.outputs.environment }}" ]; then
+            ENV_FLAG="--environment ${{ steps.request.outputs.environment }}"
+          fi
           python scripts/agent_loop.py \
             --prompt "${{ steps.request.outputs.prompt }}" \
-            --strategy auto \
-            $APPLY_FLAG
+            --strategy "${{ steps.request.outputs.strategy }}" \
+            $APPLY_FLAG \
+            $ENV_FLAG
