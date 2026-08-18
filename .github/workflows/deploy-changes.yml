@@ -5,6 +5,17 @@ on:
     types: [closed]
     paths:
       - "infra-agent/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
 
 jobs:
   apply-on-merge:
